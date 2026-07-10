@@ -135,6 +135,8 @@ public class NativeCutoutPlugin: NSObject, FlutterPlugin {
             do {
                 let maskPixelBuffer = try observation.generateScaledMaskForImage(forInstances: allInstances, from: handler)
 
+                let maskBounds = self.subjectBoundingBox(inMask: maskPixelBuffer)
+
                 // Apply mask directly to create cutout image
                 guard let cutoutImage = self.applyMask(
                     sourceImage: cgImage,
@@ -145,6 +147,17 @@ public class NativeCutoutPlugin: NSObject, FlutterPlugin {
                         result(FlutterError(code: "PROCESSING_FAILED", message: "Could not apply mask", details: nil))
                     }
                     return
+                }
+
+                // Bounds are reported in coordinates of the returned image:
+                // after cropToSubject the output *is* the subject box.
+                let subjectBounds: [Int]?
+                if cropToSubject {
+                    subjectBounds = [0, 0, cutoutImage.width, cutoutImage.height]
+                } else if let box = maskBounds {
+                    subjectBounds = [Int(box.minX), Int(box.minY), Int(box.width), Int(box.height)]
+                } else {
+                    subjectBounds = nil
                 }
 
                 // Convert to PNG data
@@ -165,7 +178,11 @@ public class NativeCutoutPlugin: NSObject, FlutterPlugin {
                         )
                         let fileUrl = dir.appendingPathComponent("cutout_\(UUID().uuidString).png")
                         try pngData.write(to: fileUrl, options: .atomic)
-                        DispatchQueue.main.async { result(fileUrl.path) }
+                        var payload: [String: Any] = ["path": fileUrl.path]
+                        if let subjectBounds = subjectBounds {
+                            payload["subjectBounds"] = subjectBounds
+                        }
+                        DispatchQueue.main.async { result(payload) }
                     } catch {
                         DispatchQueue.main.async {
                             result(FlutterError(
@@ -176,9 +193,11 @@ public class NativeCutoutPlugin: NSObject, FlutterPlugin {
                         }
                     }
                 } else {
-                    DispatchQueue.main.async {
-                        result(FlutterStandardTypedData(bytes: pngData))
+                    var payload: [String: Any] = ["bytes": FlutterStandardTypedData(bytes: pngData)]
+                    if let subjectBounds = subjectBounds {
+                        payload["subjectBounds"] = subjectBounds
                     }
+                    DispatchQueue.main.async { result(payload) }
                 }
 
             } catch {
@@ -187,6 +206,57 @@ public class NativeCutoutPlugin: NSObject, FlutterPlugin {
                 }
             }
         }
+    }
+
+    /// Scans the Vision soft mask for the bounding box of subject pixels.
+    ///
+    /// Threshold is 1/255: the faintest value that survives quantization to
+    /// the PNG's 8-bit alpha, so the box matches what a consumer would get by
+    /// scanning the decoded image's alpha channel — without paying for that
+    /// scan in Dart. Runs on the processing queue; the mask is 1 channel, so
+    /// a full pass is a few milliseconds even at 12 MP.
+    private func subjectBoundingBox(inMask mask: CVPixelBuffer) -> CGRect? {
+        CVPixelBufferLockBaseAddress(mask, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(mask, .readOnly) }
+        guard let base = CVPixelBufferGetBaseAddress(mask) else { return nil }
+
+        let width = CVPixelBufferGetWidth(mask)
+        let height = CVPixelBufferGetHeight(mask)
+        let rowBytes = CVPixelBufferGetBytesPerRow(mask)
+
+        var minX = width
+        var minY = height
+        var maxX = -1
+        var maxY = -1
+
+        func scanRows(_ subjectPixel: (UnsafeRawPointer, Int) -> Bool) {
+            for y in 0..<height {
+                let row = base + y * rowBytes
+                for x in 0..<width where subjectPixel(row, x) {
+                    if x < minX { minX = x }
+                    if x > maxX { maxX = x }
+                    if y < minY { minY = y }
+                    maxY = y
+                }
+            }
+        }
+
+        switch CVPixelBufferGetPixelFormatType(mask) {
+        case kCVPixelFormatType_OneComponent32Float:
+            let threshold: Float = 1.0 / 255.0
+            scanRows { row, x in
+                row.assumingMemoryBound(to: Float.self)[x] >= threshold
+            }
+        case kCVPixelFormatType_OneComponent8:
+            scanRows { row, x in
+                row.assumingMemoryBound(to: UInt8.self)[x] > 0
+            }
+        default:
+            return nil
+        }
+
+        guard maxX >= minX, maxY >= minY else { return nil }
+        return CGRect(x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1)
     }
 
     /// Fixes image orientation based on EXIF data

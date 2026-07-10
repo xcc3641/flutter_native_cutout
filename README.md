@@ -289,6 +289,27 @@ Notes:
 
 ## Result types
 
+### `CutoutSuccess.subjectBounds`
+
+Every success carries the subject's bounding box, computed natively during
+mask generation:
+
+```dart
+sealed class CutoutSuccess extends CutoutResult {
+  /// Bounding box of the subject's non-transparent pixels, in pixel
+  /// coordinates of the returned image. Null when it could not be determined.
+  final Rect? subjectBounds;
+}
+```
+
+Use it whenever you need the subject's position or size (e.g. to center an
+animation on the subject). It is free to read — do **not** decode the PNG and
+scan its alpha channel in Dart for this: a full-resolution scan on the main
+isolate can block the UI thread for seconds on large photos.
+
+With `cropToSubject: true` the returned image *is* the subject crop, so
+`subjectBounds` equals the full image rect.
+
 ### `CutoutFileSuccess`
 
 Successful result containing a cached PNG path:

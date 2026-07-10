@@ -28,6 +28,9 @@ class MethodChannelNativeCutout extends NativeCutoutPlatform {
       );
 
       return switch (result) {
+        // Native >= 0.3.0: map payload carrying path/bytes plus subjectBounds.
+        Map map => _successFromMap(map),
+        // Pre-0.3.0 native payloads.
         String path => CutoutFileSuccess(path),
         Uint8List bytes => CutoutBytesSuccess(bytes),
         _ => const CutoutFailure(
@@ -39,6 +42,30 @@ class MethodChannelNativeCutout extends NativeCutoutPlatform {
       final code = _parseErrorCode(e.code);
       return CutoutFailure(code, e.message ?? 'Unknown error');
     }
+  }
+
+  CutoutResult _successFromMap(Map<Object?, Object?> map) {
+    final bounds = _parseSubjectBounds(map['subjectBounds']);
+    return switch ((map['path'], map['bytes'])) {
+      (String path, _) => CutoutFileSuccess(path, subjectBounds: bounds),
+      (_, Uint8List bytes) => CutoutBytesSuccess(bytes, subjectBounds: bounds),
+      _ => const CutoutFailure(
+        CutoutErrorCode.processingFailed,
+        'Malformed result payload from native code',
+      ),
+    };
+  }
+
+  Rect? _parseSubjectBounds(Object? raw) {
+    if (raw is! List || raw.length != 4) return null;
+    final v = raw.cast<num>();
+    final rect = Rect.fromLTWH(
+      v[0].toDouble(),
+      v[1].toDouble(),
+      v[2].toDouble(),
+      v[3].toDouble(),
+    );
+    return rect.isEmpty ? null : rect;
   }
 
   CutoutErrorCode _parseErrorCode(String code) {

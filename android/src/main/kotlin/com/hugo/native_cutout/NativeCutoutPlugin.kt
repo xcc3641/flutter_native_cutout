@@ -233,15 +233,16 @@ class NativeCutoutPlugin : FlutterPlugin, MethodCallHandler, EventChannel.Stream
                         return@addOnSuccessListener
                     }
 
-                    val resultBitmap = applyMask(bitmap, mask, width, height, cropToSubject)
+                    val maskOutput = applyMask(bitmap, mask, width, height, cropToSubject)
                     bitmap.recycle()
                     if (bitmap != originalBitmap) originalBitmap.recycle()
 
-                    if (resultBitmap == null) {
+                    if (maskOutput == null) {
                         postError(result, "PROCESSING_FAILED", "Failed to apply mask")
                         return@addOnSuccessListener
                     }
 
+                    val resultBitmap = maskOutput.bitmap
                     if (writeToCache) {
                         try {
                             val cacheDir = File(context.cacheDir, "native_cutout").apply { mkdirs() }
@@ -250,7 +251,7 @@ class NativeCutoutPlugin : FlutterPlugin, MethodCallHandler, EventChannel.Stream
                                 resultBitmap.compress(Bitmap.CompressFormat.PNG, 100, os)
                             }
                             resultBitmap.recycle()
-                            postSuccess(result, outFile.absolutePath)
+                            postSuccess(result, successPayload("path", outFile.absolutePath, maskOutput.subjectBounds))
                         } catch (e: Exception) {
                             resultBitmap.recycle()
                             postError(result, "PROCESSING_FAILED", "Failed to write PNG to cache: ${e.message}")
@@ -259,7 +260,7 @@ class NativeCutoutPlugin : FlutterPlugin, MethodCallHandler, EventChannel.Stream
                         val outputStream = ByteArrayOutputStream()
                         resultBitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
                         resultBitmap.recycle()
-                        postSuccess(result, outputStream.toByteArray())
+                        postSuccess(result, successPayload("bytes", outputStream.toByteArray(), maskOutput.subjectBounds))
                     }
                 }
                 .addOnFailureListener(workerExecutor) { e ->
@@ -270,13 +271,22 @@ class NativeCutoutPlugin : FlutterPlugin, MethodCallHandler, EventChannel.Stream
         }
     }
 
+    /// Cutout bitmap plus the subject's alpha bounding box (left, top, width,
+    /// height) in coordinates of that bitmap. Bounds are null when no
+    /// non-transparent pixel was found.
+    private class MaskOutput(val bitmap: Bitmap, val subjectBounds: List<Int>?)
+
+    private fun successPayload(key: String, value: Any, bounds: List<Int>?): Map<String, Any> =
+        if (bounds != null) mapOf(key to value, "subjectBounds" to bounds)
+        else mapOf(key to value)
+
     private fun applyMask(
         bitmap: Bitmap,
         mask: FloatBuffer,
         maskWidth: Int,
         maskHeight: Int,
         cropToSubject: Boolean
-    ): Bitmap? {
+    ): MaskOutput? {
         val width = bitmap.width
         val height = bitmap.height
 
@@ -335,8 +345,15 @@ class NativeCutoutPlugin : FlutterPlugin, MethodCallHandler, EventChannel.Stream
 
         outputBitmap.setPixels(pixels, 0, width, 0, 0, width, height)
 
+        val hasBounds = maxX >= minX && maxY >= minY
+        val bounds = if (hasBounds) {
+            listOf(minX, minY, maxX - minX + 1, maxY - minY + 1)
+        } else {
+            null
+        }
+
         if (!cropToSubject) {
-            return outputBitmap
+            return MaskOutput(outputBitmap, bounds)
         }
 
         return if (maxX > minX && maxY > minY) {
@@ -344,9 +361,10 @@ class NativeCutoutPlugin : FlutterPlugin, MethodCallHandler, EventChannel.Stream
             val cropHeight = maxY - minY + 1
             val croppedBitmap = Bitmap.createBitmap(outputBitmap, minX, minY, cropWidth, cropHeight)
             outputBitmap.recycle()
-            croppedBitmap
+            // Output is the subject crop, so bounds cover the whole bitmap.
+            MaskOutput(croppedBitmap, listOf(0, 0, cropWidth, cropHeight))
         } else {
-            outputBitmap
+            MaskOutput(outputBitmap, bounds)
         }
     }
 

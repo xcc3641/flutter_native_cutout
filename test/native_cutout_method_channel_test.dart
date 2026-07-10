@@ -73,6 +73,104 @@ void main() {
       expect((result as CutoutFileSuccess).path, '/tmp/cache/cutout.png');
     });
 
+    test('parses map payload with path and subjectBounds', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(platform.methodChannel, (call) async {
+            return <String, Object?>{
+              'path': '/tmp/cache/cutout.png',
+              'subjectBounds': [10, 20, 100, 200],
+            };
+          });
+
+      final result = await platform.removeBackground(
+        '/tmp/photo.jpg',
+        options: const CutoutOptions(),
+      );
+
+      expect(result, isA<CutoutFileSuccess>());
+      final success = result as CutoutFileSuccess;
+      expect(success.path, '/tmp/cache/cutout.png');
+      expect(success.subjectBounds, const Rect.fromLTWH(10, 20, 100, 200));
+    });
+
+    test('parses map payload with bytes and subjectBounds', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(platform.methodChannel, (call) async {
+            return <String, Object?>{
+              'bytes': Uint8List.fromList([1, 2, 3]),
+              'subjectBounds': [0, 0, 50, 60],
+            };
+          });
+
+      final result = await platform.removeBackground(
+        '/tmp/photo.jpg',
+        options: const CutoutOptions(writeToCache: false),
+      );
+
+      expect(result, isA<CutoutBytesSuccess>());
+      final success = result as CutoutBytesSuccess;
+      expect(success.pngBytes, [1, 2, 3]);
+      expect(success.subjectBounds, const Rect.fromLTWH(0, 0, 50, 60));
+    });
+
+    test('map payload without subjectBounds yields null bounds', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(platform.methodChannel, (call) async {
+            return <String, Object?>{'path': '/tmp/cache/cutout.png'};
+          });
+
+      final result = await platform.removeBackground(
+        '/tmp/photo.jpg',
+        options: const CutoutOptions(),
+      );
+
+      expect((result as CutoutFileSuccess).subjectBounds, isNull);
+    });
+
+    test('malformed or empty subjectBounds yields null bounds', () async {
+      for (final bounds in [
+        [1, 2, 3], // wrong length
+        [0, 0, 0, 100], // zero width
+        'nonsense', // wrong type
+      ]) {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(platform.methodChannel, (call) async {
+              return <String, Object?>{
+                'path': '/tmp/cache/cutout.png',
+                'subjectBounds': bounds,
+              };
+            });
+
+        final result = await platform.removeBackground(
+          '/tmp/photo.jpg',
+          options: const CutoutOptions(),
+        );
+
+        expect(
+          (result as CutoutFileSuccess).subjectBounds,
+          isNull,
+          reason: 'bounds: $bounds',
+        );
+      }
+    });
+
+    test('legacy scalar payloads still parse (old native code)', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            platform.methodChannel,
+            (call) async => '/tmp/cache/legacy.png',
+          );
+
+      final result = await platform.removeBackground(
+        '/tmp/photo.jpg',
+        options: const CutoutOptions(),
+      );
+
+      final success = result as CutoutFileSuccess;
+      expect(success.path, '/tmp/cache/legacy.png');
+      expect(success.subjectBounds, isNull);
+    });
+
     test('maps NO_SUBJECT platform errors to noSubjectFound', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(platform.methodChannel, (call) async {

@@ -1,3 +1,9 @@
+## 0.3.0
+
+* Added `CutoutSuccess.subjectBounds`: the subject's alpha bounding box in pixel coordinates of the returned image, computed natively during mask generation (iOS scans the Vision soft mask, Android reuses the bounds already tracked while applying the ML Kit mask). Consumers that need the subject's position or size no longer have to scan the decoded image's alpha channel in Dart — a full-resolution scan on the main isolate can block the UI thread for seconds on large photos and get reported as an app hang.
+* With `cropToSubject: true` the returned image is the subject crop, so `subjectBounds` equals the full image rect.
+* Method channel success payload changed from a bare `String`/bytes to a map (`path`/`bytes` + optional `subjectBounds`). The Dart layer still parses the old scalar payloads, so mixed versions fail soft (bounds become `null`).
+
 ## 0.2.0
 
 * Lowered the iOS pod platform from 17.0 to 13.0 so consuming apps no longer need to raise their deployment target. Background removal still requires iOS 17 at runtime and now returns the `UNSUPPORTED_OS` error on older systems.

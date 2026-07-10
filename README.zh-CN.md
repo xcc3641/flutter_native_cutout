@@ -282,6 +282,25 @@ Stream<ModelDownloadProgress> get NativeCutout.downloadProgress
 
 ## 结果类型
 
+### `CutoutSuccess.subjectBounds`
+
+每个成功结果都携带主体的包围盒，在原生侧生成蒙版时顺带算出：
+
+```dart
+sealed class CutoutSuccess extends CutoutResult {
+  /// 主体非透明像素的包围盒，使用返回图像的像素坐标。
+  /// 无法确定时为 null。
+  final Rect? subjectBounds;
+}
+```
+
+需要主体位置或大小时（例如让动画对准主体）直接读它，读取零成本——
+**不要**在 Dart 里解码 PNG 再逐像素扫 alpha 通道：大图全分辨率扫描
+会在主 isolate 上阻塞 UI 线程数秒。
+
+`cropToSubject: true` 时返回图像本身就是主体裁切，
+因此 `subjectBounds` 等于整图矩形。
+
 ### `CutoutFileSuccess`
 
 带缓存 PNG 路径的成功结果：

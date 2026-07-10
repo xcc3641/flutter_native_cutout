@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:ui' show Rect;
 
 import 'native_cutout_platform_interface.dart';
 
@@ -47,7 +48,20 @@ sealed class CutoutResult {
 /// Successful cutout. Either file-backed or in-memory depending on
 /// [CutoutOptions.writeToCache].
 sealed class CutoutSuccess extends CutoutResult {
-  const CutoutSuccess();
+  /// Bounding box of the subject's non-transparent pixels, in pixel
+  /// coordinates of the returned image.
+  ///
+  /// Computed natively during mask generation, so reading it costs nothing —
+  /// use it instead of scanning the decoded image's alpha channel in Dart
+  /// (a full-resolution scan on the main isolate can block the UI for
+  /// seconds on large photos).
+  ///
+  /// When [CutoutOptions.cropToSubject] is true the returned image *is* the
+  /// subject crop, so this equals the full image rect. Null when the native
+  /// side could not determine the box.
+  final Rect? subjectBounds;
+
+  const CutoutSuccess({this.subjectBounds});
 }
 
 /// PNG was written to the app cache directory.
@@ -59,7 +73,7 @@ class CutoutFileSuccess extends CutoutSuccess {
   /// Absolute path to the PNG file on device storage.
   final String path;
 
-  const CutoutFileSuccess(this.path);
+  const CutoutFileSuccess(this.path, {super.subjectBounds});
 }
 
 /// PNG returned directly as bytes.
@@ -67,7 +81,7 @@ class CutoutBytesSuccess extends CutoutSuccess {
   /// The processed image with transparent background as PNG bytes.
   final Uint8List pngBytes;
 
-  const CutoutBytesSuccess(this.pngBytes);
+  const CutoutBytesSuccess(this.pngBytes, {super.subjectBounds});
 }
 
 /// Failed cutout result containing error information.

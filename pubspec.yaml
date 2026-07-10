@@ -1,6 +1,6 @@
 name: native_cutout
 description: "On-device background removal for Flutter. iOS Vision (iOS 17+) and Android ML Kit (model downloaded on demand). Outputs transparent PNG."
-version: 0.2.0
+version: 0.3.0
 homepage: https://github.com/xcc3641/flutter_native_cutout
 repository: https://github.com/xcc3641/flutter_native_cutout
 issue_tracker: https://github.com/xcc3641/flutter_native_cutout/issues
