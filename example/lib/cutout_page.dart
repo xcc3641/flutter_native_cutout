@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:gal/gal.dart';
 import 'package:native_cutout/native_cutout.dart';
 
+import 'reveal_page.dart';
+
 class CutoutPage extends StatefulWidget {
   const CutoutPage({super.key, required this.imagePath});
 
@@ -284,6 +286,23 @@ class _CutoutPageState extends State<CutoutPage> {
                             )
                           : const Icon(Icons.save_alt),
                       label: Text(_isSaving ? 'Saving...' : 'Save'),
+                    ),
+                    const SizedBox(width: 8),
+                    OutlinedButton.icon(
+                      // The animation needs original and cutout at the same
+                      // resolution, so it is unavailable for cropped output.
+                      onPressed: _cropToSubject
+                          ? null
+                          : () => Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => RevealPage(
+                                    originalPath: widget.imagePath,
+                                    success: success,
+                                  ),
+                                ),
+                              ),
+                      icon: const Icon(Icons.auto_awesome),
+                      label: const Text('Reveal'),
                     ),
                   ],
                 ),

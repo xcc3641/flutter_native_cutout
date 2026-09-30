@@ -31,6 +31,7 @@
 - `clearCache()` 清理缓存
 - Android 提供模型生命周期 API：可用性查询、下载、下载进度、清除
 - 简洁的 Dart API，结果类型严格区分成功 / 失败
+- 可选的**揭示动画**（`CutoutRevealAnimation`），需单独导入，不引入额外依赖
 
 ## 平台支持
 
@@ -50,7 +51,7 @@
 
 ```yaml
 dependencies:
-  native_cutout: ^0.1.0
+  native_cutout: ^0.4.0
 ```
 
 然后执行：
@@ -364,6 +365,35 @@ class CutoutFailure extends CutoutResult {
 - Android 端依赖 Google Play services 与一次**初始模型下载**（首次调用时隐式触发，或通过 `downloadModel()` 显式触发）；模型未缓存时首次调用**对离线不友好**
 - 抠图质量取决于平台分割引擎和源图质量
 
+## 可选：揭示动画
+
+包里附带一个可选的「抠出」动画，用来展示抠图结果。它在单独的库里，`native_cutout.dart` 不导出它，也不引入任何额外依赖——需要时才导入：
+
+```dart
+import 'package:native_cutout/cutout_reveal.dart';
+
+// originalImage / cutoutImage：原图和抠图 PNG 解码后的 ui.Image。
+// 两者分辨率必须一致，所以抠图时用 cropToSubject: false。
+CutoutRevealAnimation(
+  originalImage: originalImage,
+  cutoutImage: cutoutImage,
+  subjectBounds: success.subjectBounds, // 传了就不用再扫 alpha
+  onCompleted: () {/* 停在最后一帧，或跳转 */},
+)
+```
+
+时间线（默认 `rippleSpeed: 1.5`，约 2.4 秒）：两道发光波纹扫过主体 → 主体放大到 1.1 倍、背景变暗 → 主体描边呼吸一次。`loop: false` 时停在最后一帧。
+
+| 参数 | 默认值 | 说明 |
+| --- | --- | --- |
+| `loop` | `false` | 循环播放 |
+| `rippleSpeed` | `1.5` | 波纹阶段速度倍率（0.1–8.0） |
+| `glowColor` | `#FFE200` | 波纹和描边的发光颜色 |
+| `backgroundColor` | `#6A6A6A` | 图片后面的底色 |
+| `strokeStyle` | `CutoutStrokeStyle()` | 描边宽度、模糊度、光晕层数 |
+
+传入的 `ui.Image` 不会被这个 widget 释放，需要调用方自己 dispose。
+
 ## Example 示例工程
 
 仓库中的 [`example/`](example/) 工程演示了：
@@ -378,6 +408,7 @@ class CutoutFailure extends CutoutResult {
 - 预览前后对比
 - 比较缓存文件输出尺寸与原图
 - 保存生成的透明 PNG
+- 对未裁剪的结果播放可选的揭示动画
 
 ## License
 

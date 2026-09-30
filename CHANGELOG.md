@@ -1,3 +1,9 @@
+## 0.4.0
+
+* Added an optional reveal animation, `CutoutRevealAnimation`, behind a separate entry point: `import 'package:native_cutout/cutout_reveal.dart'`. It is not exported from `native_cutout.dart`, so apps that only need background removal are unaffected, and it adds no dependencies.
+* The animation sweeps two glowing pulses across the subject, zooms it out of a dimmed background, then breathes an outline glow. Pass `CutoutSuccess.subjectBounds` to position the pulses without an alpha scan. Tunable via `glowColor`, `backgroundColor`, `rippleSpeed`, `loop`, and `CutoutStrokeStyle`.
+* Example app: added a Reveal button on the result page (disabled with `cropToSubject`).
+
 ## 0.3.0
 
 * Added `CutoutSuccess.subjectBounds`: the subject's alpha bounding box in pixel coordinates of the returned image, computed natively during mask generation (iOS scans the Vision soft mask, Android reuses the bounds already tracked while applying the ML Kit mask). Consumers that need the subject's position or size no longer have to scan the decoded image's alpha channel in Dart — a full-resolution scan on the main isolate can block the UI thread for seconds on large photos and get reported as an app hang.

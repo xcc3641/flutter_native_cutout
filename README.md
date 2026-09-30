@@ -31,6 +31,7 @@ It is built on top of:
 - Cache management via `clearCache()`
 - Android model lifecycle helpers: availability check, download, progress, and clear
 - Simple Dart API with typed success/failure results
+- Optional **reveal animation** (`CutoutRevealAnimation`) behind a separate import, with no extra dependencies
 
 ## Platform support
 
@@ -50,7 +51,7 @@ Add the package to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  native_cutout: ^0.1.0
+  native_cutout: ^0.4.0
 ```
 
 Then run:
@@ -373,6 +374,36 @@ For the highest-quality cutout:
 - Android requires Google Play services and an **initial model download** (implicit on first use, or explicit via `downloadModel()`); the first call is **offline-unfriendly** if the model isn't already cached
 - The quality of the result depends on the platform segmentation engine and source image quality
 
+## Optional: reveal animation
+
+The package ships an opt-in "pop-out" animation for presenting a result. It lives in a separate library, is not exported from `native_cutout.dart`, and adds no dependencies — import it only if you want it:
+
+```dart
+import 'package:native_cutout/cutout_reveal.dart';
+
+// originalImage / cutoutImage: decoded ui.Image of the source photo and the
+// cutout PNG. They must share the same resolution, so run the cutout with
+// cropToSubject: false.
+CutoutRevealAnimation(
+  originalImage: originalImage,
+  cutoutImage: cutoutImage,
+  subjectBounds: success.subjectBounds, // skips the fallback alpha scan
+  onCompleted: () {/* hold on the final frame or navigate */},
+)
+```
+
+Timeline (default `rippleSpeed: 1.5`, about 2.4 s): two glowing pulses sweep across the subject, the subject zooms to 1.1× over a dimmed background, then its outline glow breathes once. With `loop: false` it holds on the final frame.
+
+| Parameter | Default | Description |
+| --- | --- | --- |
+| `loop` | `false` | Repeat instead of playing once |
+| `rippleSpeed` | `1.5` | Pulse phase speed multiplier (0.1–8.0) |
+| `glowColor` | `#FFE200` | Pulse and outline glow color |
+| `backgroundColor` | `#6A6A6A` | Fill behind the images |
+| `strokeStyle` | `CutoutStrokeStyle()` | Outline width, blur, and halo layers |
+
+The widget does not dispose the `ui.Image`s you pass in.
+
 ## Example app
 
 The [`example/`](example/) app in this repository demonstrates:
@@ -387,6 +418,7 @@ The [`example/`](example/) app in this repository demonstrates:
 - previewing before/after results
 - comparing cached-file output dimensions with the original image
 - saving the transparent PNG output
+- playing the optional reveal animation on an uncropped result
 
 ## License
 
