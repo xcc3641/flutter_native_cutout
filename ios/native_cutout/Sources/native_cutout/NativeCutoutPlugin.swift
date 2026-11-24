@@ -4,6 +4,7 @@ import Vision
 import CoreImage
 import Accelerate
 
+
 public class NativeCutoutPlugin: NSObject, FlutterPlugin {
     public static func register(with registrar: FlutterPluginRegistrar) {
         let channel = FlutterMethodChannel(name: "com.hugo/native_cutout", binaryMessenger: registrar.messenger())
